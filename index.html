@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Glowfly 인증</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --card: rgba(255,255,255,0.06);
+      --border: rgba(255,255,255,0.12);
+      --text: #e7eefc;
+      --muted: rgba(231,238,252,0.70);
+      --muted2: rgba(231,238,252,0.55);
+      --accent: #18b6c9;
+      --danger: #fb7185;
+      --ok: #6ee7b7;
+      --input-bg: rgba(0,0,0,0.25);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    }
+    .wrap {
+      max-width: 820px;
+      margin: 42px auto;
+      padding: 0 16px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px 18px 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+    }
+    p {
+      margin: 8px 0;
+      line-height: 1.55;
+    }
+    .muted { color: var(--muted); }
+    .muted2 { color: var(--muted2); font-size: 12px; }
+    .row {
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .spacer { height: 10px; }
+    input {
+      flex: 1;
+      min-width: 260px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: var(--input-bg);
+      color: var(--text);
+      outline: none;
+    }
+    input:focus {
+      border-color: rgba(24,182,201,0.75);
+      box-shadow: 0 0 0 3px rgba(24,182,201,0.18);
+    }
+    button {
+      padding: 10px 14px;
+      border-radius: 12px;
+      border: 0;
+      cursor: pointer;
+      background: var(--accent);
+      color: #001018;
+      font-weight: 800;
+    }
+    button.secondary {
+      background: rgba(255,255,255,0.10);
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    button:disabled { opacity: 0.65; cursor:not-allowed; }
+    .ok { color: var(--ok); font-weight: 700; }
+    .err { color: var(--danger); font-weight: 700; }
+    code {
+      background: rgba(0,0,0,0.25);
+      padding: 2px 6px;
+      border-radius: 8px;
+    }
+    .footer {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255,255,255,0.10);
+      display:flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1 id="title">처리 중...</h1>
+      <p id="desc" class="muted">링크 정보를 확인하고 있습니다.</p>
+
+      <div id="resetBox" style="display:none; margin-top:12px;">
+        <p class="muted">새 비밀번호를 입력하세요.</p>
+        <div class="row">
+          <input id="pw1" type="password" placeholder="새 비밀번호 (8자 이상 권장)" autocomplete="new-password" />
+          <input id="pw2" type="password" placeholder="새 비밀번호 확인" autocomplete="new-password" />
+        </div>
+        <div class="spacer"></div>
+        <div class="row" style="justify-content:flex-end;">
+          <button id="btnReset">비밀번호 변경</button>
+        </div>
+        <p id="msg" class="muted2" style="margin-top:8px;"></p>
+      </div>
+
+      <p id="status" style="margin-top:12px;"></p>
+
+      <div class="footer">
+        <div class="muted2">
+          Glowfly Auth Landing · Project <code>xiecvrftlfrcsoveegip</code>
+        </div>
+        <div class="row" style="justify-content:flex-end;">
+          <button class="secondary" id="btnClose" type="button">창 닫기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // ====== Project fixed values (already filled) ======
+  const SUPABASE_URL = "https://xiecvrftlfrcsoveegip.supabase.co";
+  const ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpZWN2cmZ0bGZyY3NvdmVlZ2lwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgwNDM2MTYsImV4cCI6MjA4MzYxOTYxNn0.8BoVJJ-75ywfDCNPQDHSUu9wkhlLVRkvJsh0lZR2j84";
+
+  const title = document.getElementById('title');
+  const desc  = document.getElementById('desc');
+  const status = document.getElementById('status');
+  const resetBox = document.getElementById('resetBox');
+  const msg = document.getElementById('msg');
+  const btnReset = document.getElementById('btnReset');
+  const btnClose = document.getElementById('btnClose');
+
+  btnClose.addEventListener('click', () => window.close());
+
+  function setOk(text) {
+    status.className = 'ok';
+    status.textContent = text;
+  }
+  function setErr(text) {
+    status.className = 'err';
+    status.textContent = text;
+  }
+
+  // Parse both hash and query (some setups may pass tokens in query)
+  const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash;
+  const paramsHash = new URLSearchParams(hash);
+  const paramsQuery = new URLSearchParams(window.location.search);
+
+  const access_token = paramsHash.get('access_token') || paramsQuery.get('access_token') || '';
+  const type = (paramsHash.get('type') || paramsQuery.get('type') || '').toLowerCase();
+  const error = paramsHash.get('error_description') || paramsHash.get('error') || paramsQuery.get('error_description') || paramsQuery.get('error') || '';
+
+  // Remove token from URL for safety (avoid leaving it in history)
+  try {
+    if (window.location.hash) {
+      history.replaceState(null, document.title, window.location.pathname + window.location.search);
+    }
+  } catch (_) {}
+
+  if (error) {
+    title.textContent = '오류';
+    desc.textContent = '요청을 처리할 수 없습니다.';
+    setErr(error);
+    return;
+  }
+
+  const isRecovery = (type === 'recovery');
+
+  // No token => typical confirm-signup success redirect
+  if (!access_token) {
+    // Some cases could be "open this after email confirm" without tokens
+    title.textContent = '완료';
+    desc.textContent = '이메일 인증이 완료되었습니다. 창을 닫고 앱에서 로그인하세요.';
+    setOk('이메일 인증 완료');
+    return;
+  }
+
+  // Password reset flow
+  if (isRecovery) {
+    title.textContent = '비밀번호 재설정';
+    desc.textContent = '새 비밀번호를 설정하세요.';
+    resetBox.style.display = 'block';
+    status.textContent = '';
+
+    btnReset.addEventListener('click', async () => {
+      const pw1 = (document.getElementById('pw1').value || '').trim();
+      const pw2 = (document.getElementById('pw2').value || '').trim();
+      msg.className = 'muted2';
+
+      if (pw1.length < 8) {
+        msg.textContent = '비밀번호는 8자 이상을 권장합니다.';
+        return;
+      }
+      if (pw1 !== pw2) {
+        msg.textContent = '비밀번호 확인이 일치하지 않습니다.';
+        return;
+      }
+
+      btnReset.disabled = true;
+      msg.textContent = '변경 중...';
+
+      try {
+        const res = await fetch(SUPABASE_URL + '/auth/v1/user', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': ANON,
+            'Authorization': 'Bearer ' + access_token
+          },
+          body: JSON.stringify({ password: pw1 })
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data?.msg || data?.error_description || data?.error || ('HTTP ' + res.status));
+        }
+
+        msg.className = 'ok';
+        msg.textContent = '비밀번호 변경 완료. 창을 닫고 앱에서 새 비밀번호로 로그인하세요.';
+      } catch (e) {
+        msg.className = 'err';
+        msg.textContent = '실패: ' + String(e?.message || e);
+      } finally {
+        btnReset.disabled = false;
+      }
+    });
+
+    return;
+  }
+
+  // Other token types (signup, magiclink, invite ...)
+  title.textContent = '완료';
+  desc.textContent = '처리가 완료되었습니다. 창을 닫고 앱으로 돌아가세요.';
+  setOk('완료');
+})();
+</script>
+</body>
+</html>
